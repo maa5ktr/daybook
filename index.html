@@ -1,0 +1,942 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f5f0">
+  <title>Daybook | Personal spending</title>
+  <script async src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js" onload="window.dispatchEvent(new Event('chartjs-ready'))"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f4f5f0;
+      --surface: #fff;
+      --ink: #1b2822;
+      --muted: #78817b;
+      --line: #e8ebe5;
+      --green: #bbdf69;
+      --green-dark: #46632c;
+      --coral: #e78b69;
+      --blue: #78aeb0;
+      --yellow: #ebc46f;
+      --violet: #aa9cbe;
+      --shadow: 0 12px 32px rgb(31 43 35 / 5%);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background-color: var(--paper);
+      background-image: radial-gradient(#dce1d8 0.65px, transparent 0.65px);
+      background-size: 17px 17px;
+      color: var(--ink);
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .app-shell { width: min(1280px, calc(100% - 56px)); margin: 0 auto; padding: 30px 0 48px; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 44px; }
+    .brand { display: flex; gap: 11px; align-items: center; font-weight: 800; letter-spacing: .02em; }
+    .brand-mark { width: 35px; height: 35px; display: grid; place-items: center; border-radius: 12px; background: var(--ink); color: var(--green); font-size: 18px; }
+    .brand small { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .11em; text-transform: uppercase; }
+    .local-badge { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #dfe5d8; border-radius: 999px; background: rgb(255 255 255 / 72%); padding: 8px 12px; color: #56624f; font-size: 11px; font-weight: 700; }
+    .local-dot { width: 7px; height: 7px; border-radius: 50%; background: #8dbb4e; box-shadow: 0 0 0 3px #e7f1d9; }
+    .intro { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 26px; }
+    .eyebrow { color: var(--green-dark); font-size: 11px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+    h1 { margin: 8px 0 0; font: 500 clamp(34px, 4vw, 49px)/1.06 Georgia, "Times New Roman", serif; letter-spacing: -.035em; }
+    .intro-copy { margin: 10px 0 0; color: var(--muted); font-size: 14px; }
+    .today-label { color: var(--muted); font-size: 12px; font-weight: 700; text-align: right; }
+    .today-label strong { display: block; margin-top: 5px; color: var(--ink); font-size: 14px; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
+    .stat-card { position: relative; min-height: 136px; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); padding: 21px 22px; box-shadow: var(--shadow); }
+    .stat-card.primary { border-color: var(--ink); background: var(--ink); color: white; }
+    .stat-card.primary::after { position: absolute; right: -27px; bottom: -65px; width: 150px; height: 150px; border: 1px solid rgb(187 223 105 / 30%); border-radius: 50%; content: ""; box-shadow: 0 0 0 17px rgb(187 223 105 / 5%), 0 0 0 36px rgb(187 223 105 / 4%); }
+    .stat-label { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .primary .stat-label { color: #bdc7c0; }
+    .stat-value { margin-top: 14px; font: 600 30px/1 Georgia, "Times New Roman", serif; letter-spacing: -.03em; }
+    .stat-foot { margin-top: 9px; color: var(--muted); font-size: 11px; }
+    .primary .stat-foot { color: #aab5ad; }
+    .stat-value.category-value { font-size: 25px; }
+    .income-stat .stat-value { color: #63863a; }
+    .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 16px; margin-bottom: 16px; }
+    .panel { min-width: 0; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
+    .panel-heading { display: flex; justify-content: space-between; gap: 12px; align-items: start; padding: 20px 21px 0; }
+    .panel-title { margin: 0; font: 600 18px/1.2 Georgia, "Times New Roman", serif; letter-spacing: -.015em; }
+    .panel-subtitle { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
+    .chart-wrap { position: relative; height: 230px; padding: 17px 19px 12px; }
+    .category-content { display: grid; grid-template-columns: minmax(140px, .95fr) minmax(130px, 1.05fr); align-items: center; gap: 4px; height: 100%; }
+    .category-canvas { width: 100%; height: 190px; }
+    .category-legend { display: grid; gap: 11px; max-height: 176px; overflow: auto; padding-right: 4px; }
+    .legend-row { display: flex; justify-content: space-between; gap: 9px; align-items: center; color: #59635d; font-size: 11px; }
+    .legend-name { display: flex; min-width: 0; gap: 7px; align-items: center; }
+    .legend-name span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .legend-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 3px; }
+    .legend-amount { color: var(--ink); font-weight: 700; white-space: nowrap; }
+    .trend-canvas { display: block; width: 100%; height: 100%; }
+    .chart-empty { display: grid; height: 100%; place-items: center; color: #98a19a; font-size: 12px; text-align: center; }
+    .work-grid { display: grid; grid-template-columns: minmax(280px, .72fr) minmax(0, 1.55fr); gap: 16px; align-items: start; }
+    .form-panel { padding-bottom: 20px; }
+    .form-panel .panel-heading { padding-bottom: 19px; }
+    .form-grid { display: grid; gap: 13px; padding: 0 21px; }
+    .field-label { display: block; margin-bottom: 6px; color: #59635d; font-size: 11px; font-weight: 700; }
+    .field-control { width: 100%; min-height: 42px; border: 1px solid #e2e7df; border-radius: 9px; outline: none; background: #fbfcf9; padding: 0 11px; color: var(--ink); font-size: 13px; transition: border-color .15s, box-shadow .15s; }
+    .field-control:focus { border-color: #9abb63; box-shadow: 0 0 0 3px rgb(187 223 105 / 23%); }
+    .note-control { min-height: 68px; padding: 10px 11px; resize: vertical; }
+    .amount-wrap { position: relative; }
+    .amount-prefix { position: absolute; top: 50%; left: 12px; color: #869087; transform: translateY(-50%); }
+    .amount-control { padding-left: 27px; }
+    .submit-button { display: flex; min-height: 44px; justify-content: center; gap: 8px; align-items: center; border: 0; border-radius: 9px; background: var(--green); color: #25331d; font-size: 12px; font-weight: 800; transition: background .15s, transform .15s; }
+    .submit-button:hover { background: #c9e984; transform: translateY(-1px); }
+    .submit-button:disabled { cursor: not-allowed; opacity: .55; transform: none; }
+    .submit-button:focus-visible, .delete-button:focus-visible { outline: 3px solid #87a852; outline-offset: 2px; }
+    .form-message { min-height: 14px; margin: -5px 0 0; color: #71806c; font-size: 11px; }
+    .transactions-panel { overflow: hidden; }
+    .transactions-heading { align-items: center; padding-bottom: 16px; }
+    .transaction-controls { display: flex; gap: 8px; align-items: center; }
+    .search-control, .filter-control { height: 36px; border: 1px solid #e5e9e3; border-radius: 8px; outline: none; background: #fbfcf9; color: var(--ink); font-size: 11px; }
+    .search-control { width: min(190px, 30vw); padding: 0 10px; }
+    .filter-control { max-width: 118px; padding: 0 8px; }
+    .search-control:focus, .filter-control:focus { border-color: #9abb63; }
+    .transaction-count { padding: 0 21px 10px; color: #89928b; font-size: 10px; }
+    .transaction-list { max-height: 367px; overflow: auto; }
+    .transaction-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 15px; align-items: center; border-top: 1px solid #f0f2ee; padding: 12px 21px; animation: row-in .25s ease both; }
+    @keyframes row-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    .transaction-main { display: flex; min-width: 0; gap: 11px; align-items: center; }
+    .category-icon { display: grid; flex: 0 0 35px; width: 35px; height: 35px; place-items: center; border-radius: 11px; font-size: 15px; }
+    .transaction-description { min-width: 0; }
+    .transaction-note { overflow: hidden; color: var(--ink); font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .transaction-meta { overflow: hidden; margin-top: 4px; color: #89928b; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .transaction-date { color: #7f8981; font-size: 10px; white-space: nowrap; }
+    .transaction-end { display: flex; min-width: 93px; justify-content: end; gap: 9px; align-items: center; }
+    .transaction-amount { font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .transaction-amount.income { color: #63863a; }
+    .delete-button { display: grid; width: 27px; height: 27px; place-items: center; border: 0; border-radius: 7px; background: transparent; color: #a4aca6; font-size: 16px; opacity: 0; transition: color .15s, background .15s, opacity .15s; }
+    .transaction-row:hover .delete-button, .delete-button:focus-visible { opacity: 1; }
+    .delete-button:hover { background: #fff0eb; color: #b85034; }
+    .empty-state { padding: 37px 20px 42px; color: #8a938c; font-size: 12px; text-align: center; }
+    .empty-state strong { display: block; margin-bottom: 6px; color: #59635d; font: 600 17px Georgia, "Times New Roman", serif; }
+    .footer-note { margin-top: 21px; color: #929a93; font-size: 10px; text-align: center; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
+    #auth-screen[hidden], #app-shell[hidden], #invite-panel[hidden] { display: none; }
+    .auth-shell { width: min(430px, calc(100% - 32px)); margin: 10vh auto 40px; }
+    .auth-panel { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); padding: 27px; box-shadow: var(--shadow); }
+    .auth-heading { margin: 22px 0 0; font: 500 34px/1.08 Georgia, "Times New Roman", serif; }
+    .auth-copy { margin: 9px 0 22px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .auth-form { display: grid; gap: 13px; }
+    .auth-actions { display: grid; gap: 10px; margin-top: 4px; }
+    .auth-switch { min-height: 40px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: #57615b; font-size: 12px; font-weight: 700; }
+    .auth-error { min-height: 16px; margin: 0; color: #b85034; font-size: 11px; }
+    .account-controls { display: flex; gap: 9px; align-items: center; }
+    .account-name { max-width: 145px; overflow: hidden; color: #57615b; font-size: 11px; font-weight: 700; text-overflow: ellipsis; }
+    .small-action { min-height: 34px; border: 1px solid #dfe5d8; border-radius: 8px; background: #fff; padding: 0 10px; color: #4f5c47; font-size: 10px; font-weight: 700; }
+    .small-action:hover, .auth-switch:hover { background: #f6f8f2; }
+    .invite-panel { position: fixed; z-index: 5; inset: 0; display: grid; place-items: center; background: rgb(24 34 29 / 35%); padding: 20px; }
+    .invite-card { width: min(420px, 100%); border: 1px solid var(--line); border-radius: 15px; background: #fff; padding: 23px; box-shadow: 0 20px 70px rgb(16 28 20 / 18%); }
+    .invite-code { overflow-wrap: anywhere; margin: 17px 0; border: 1px dashed #cdd6c4; border-radius: 9px; background: #f8faf5; padding: 13px; color: var(--ink); font: 700 14px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; user-select: all; }
+
+    @media (max-width: 850px) {
+      .app-shell { width: min(100% - 36px, 680px); padding-top: 21px; }
+      .topbar { margin-bottom: 34px; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .dashboard-grid { grid-template-columns: 1fr; }
+      .work-grid { grid-template-columns: 1fr; }
+      .form-grid { grid-template-columns: 1fr 1fr; }
+      .form-grid .wide-field, .form-grid .submit-button, .form-grid .form-message { grid-column: 1 / -1; }
+      .form-grid .form-message { grid-row: auto; }
+      .transaction-list { max-height: 430px; }
+    }
+    @media (max-width: 520px) {
+      .app-shell { width: calc(100% - 28px); padding-top: 16px; }
+      .topbar { margin-bottom: 29px; }
+      .intro { align-items: start; margin-bottom: 20px; }
+      .intro-copy { max-width: 260px; font-size: 12px; line-height: 1.5; }
+      .today-label { padding-top: 4px; font-size: 10px; }
+      .today-label strong { max-width: 95px; font-size: 11px; }
+      .stats { grid-template-columns: 1fr 1fr; gap: 9px; }
+      .stat-card { min-height: 114px; padding: 16px; }
+      .stat-value { font-size: 26px; }
+      .stat-value.category-value { font-size: 23px; }
+      .panel-heading { padding-right: 15px; padding-left: 15px; }
+      .chart-wrap { height: 218px; padding-right: 12px; padding-left: 12px; }
+      .category-content { grid-template-columns: 1fr 1fr; }
+      .category-legend { gap: 9px; }
+      .form-panel .panel-heading { padding-bottom: 16px; }
+      .form-grid { gap: 11px; padding: 0 15px; }
+      .transactions-heading { flex-direction: column; align-items: stretch; }
+      .transaction-controls { width: 100%; }
+      .search-control { width: auto; min-width: 0; flex: 1; }
+      .filter-control { max-width: 125px; }
+      .transaction-count { padding-right: 15px; padding-left: 15px; }
+      .transaction-row { grid-template-columns: minmax(0, 1fr) auto; gap: 7px; padding: 11px 15px; }
+      .transaction-date { display: none; }
+      .transaction-end { min-width: 0; }
+      .delete-button { opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="auth-shell" id="auth-screen" hidden>
+    <section class="auth-panel" aria-labelledby="auth-title">
+      <div class="brand" aria-label="Daybook personal spending">
+        <div class="brand-mark" aria-hidden="true">d.</div>
+        <div>daybook<small>private household ledger</small></div>
+      </div>
+      <h1 class="auth-heading" id="auth-title">Welcome to your ledger.</h1>
+      <p class="auth-copy" id="auth-copy">Sign in to see your private transactions.</p>
+      <form class="auth-form" id="auth-form">
+        <div id="setup-code-wrap" hidden>
+          <label class="field-label" for="setup-code">Owner setup code</label>
+          <input class="field-control" id="setup-code" name="setupCode" autocomplete="one-time-code">
+        </div>
+        <div id="invite-code-wrap" hidden>
+          <label class="field-label" for="invite-code">Invitation code</label>
+          <input class="field-control" id="invite-code" name="inviteCode" autocomplete="one-time-code">
+        </div>
+        <div>
+          <label class="field-label" for="auth-username">Username</label>
+          <input class="field-control" id="auth-username" name="username" autocomplete="username" minlength="3" maxlength="32" required>
+        </div>
+        <div>
+          <label class="field-label" for="auth-password">Password</label>
+          <input class="field-control" id="auth-password" name="password" type="password" autocomplete="current-password" minlength="10" maxlength="256" required>
+        </div>
+        <p class="auth-error" id="auth-error" aria-live="polite"></p>
+        <div class="auth-actions">
+          <button class="submit-button" id="auth-submit" type="submit">Sign in</button>
+          <button class="auth-switch" id="auth-switch" type="button">Create an account with an invite</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <main class="app-shell mx-auto max-w-7xl" id="app-shell" hidden>
+    <header class="topbar">
+      <div class="brand" aria-label="Daybook personal spending">
+        <div class="brand-mark" aria-hidden="true">d.</div>
+        <div>daybook<small>personal spending</small></div>
+      </div>
+      <div class="account-controls">
+        <span class="account-name" id="account-name"></span>
+        <button class="small-action" id="invite-button" type="button" hidden>Invite</button>
+        <button class="small-action" id="logout-button" type="button">Sign out</button>
+        <div class="local-badge"><span class="local-dot" aria-hidden="true"></span><span id="storage-status" aria-live="polite">Connecting…</span></div>
+      </div>
+    </header>
+
+    <section class="intro" aria-labelledby="page-title">
+      <div>
+        <div class="eyebrow">A little more clarity</div>
+        <h1 id="page-title">Your money, in motion.</h1>
+        <p class="intro-copy">A quiet place to keep track of where it goes.</p>
+      </div>
+      <div class="today-label">TODAY<strong id="today-label"></strong></div>
+    </section>
+
+    <section class="stats" aria-label="Income and spending summary">
+      <article class="stat-card primary">
+        <div class="stat-label">Total spent</div>
+        <div class="stat-value" id="total-spent">$0.00</div>
+        <div class="stat-foot" id="total-foot">Across all recorded expenses</div>
+      </article>
+      <article class="stat-card income-stat">
+        <div class="stat-label">Income tracked</div>
+        <div class="stat-value" id="total-income">$0.00</div>
+        <div class="stat-foot" id="income-foot">Across all recorded income</div>
+      </article>
+      <article class="stat-card">
+        <div class="stat-label">Spent this month</div>
+        <div class="stat-value" id="month-spent">$0.00</div>
+        <div class="stat-foot" id="month-foot">No expenses logged this month</div>
+      </article>
+      <article class="stat-card">
+        <div class="stat-label">Top category</div>
+        <div class="stat-value category-value" id="top-category">—</div>
+        <div class="stat-foot" id="category-foot">Your spending mix will show up here</div>
+      </article>
+    </section>
+
+    <section class="dashboard-grid" aria-label="Spending analytics">
+      <article class="panel" aria-labelledby="category-title">
+        <div class="panel-heading">
+          <div><h2 class="panel-title" id="category-title">Where it goes</h2><p class="panel-subtitle">Expense breakdown by category</p></div>
+        </div>
+        <div class="chart-wrap"><div class="category-content" id="category-chart"></div></div>
+      </article>
+      <article class="panel" aria-labelledby="trend-title">
+        <div class="panel-heading">
+          <div><h2 class="panel-title" id="trend-title">Spending rhythm</h2><p class="panel-subtitle">Daily expenses over the last 14 days</p></div>
+        </div>
+        <div class="chart-wrap"><div id="trend-chart" style="height:100%"></div></div>
+      </article>
+    </section>
+
+    <section class="work-grid" aria-label="Income, expenses, and transactions">
+      <article class="panel form-panel" aria-labelledby="add-title">
+        <div class="panel-heading"><div><h2 class="panel-title" id="add-title">Add a transaction</h2><p class="panel-subtitle">Record money coming in or going out.</p></div></div>
+        <form id="expense-form" class="form-grid">
+          <div>
+            <label class="field-label" for="amount">Amount</label>
+            <div class="amount-wrap"><span class="amount-prefix" aria-hidden="true">৳</span><input class="field-control amount-control" id="amount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" required></div>
+          </div>
+          <div>
+            <label class="field-label" for="flow-type">Type</label>
+            <select class="field-control" id="flow-type" name="type" required><option value="expense">Expense</option><option value="income">Income</option></select>
+          </div>
+          <div>
+            <label class="field-label" for="category">Category</label>
+            <select class="field-control" id="category" name="category" required></select>
+          </div>
+          <div>
+            <label class="field-label" for="date">Date</label>
+            <input class="field-control" id="date" name="date" type="date" required>
+          </div>
+          <div class="wide-field">
+            <label class="field-label" for="note">Note <span style="font-weight:400;color:#929a93">(optional)</span></label>
+            <input class="field-control" id="note" name="note" type="text" maxlength="80" placeholder="What was it for?">
+          </div>
+          <p class="form-message" id="form-message" aria-live="polite"></p>
+          <button class="submit-button col-span-2" id="submit-transaction" type="submit"><span aria-hidden="true">＋</span> <span id="submit-label">Add expense</span></button>
+        </form>
+      </article>
+
+      <article class="panel transactions-panel" aria-labelledby="transactions-title">
+        <div class="panel-heading transactions-heading">
+          <div><h2 class="panel-title" id="transactions-title">Recent transactions</h2><p class="panel-subtitle">Your latest spending, all in one place.</p></div>
+          <div class="transaction-controls">
+            <label class="sr-only" for="search">Search transactions</label>
+            <input class="search-control" id="search" type="search" placeholder="Search transactions…" autocomplete="off">
+            <label class="sr-only" for="category-filter">Filter by category</label>
+            <select class="filter-control" id="category-filter"><option value="all">All categories</option><option>Food</option><option>Transport</option><option>Utilities</option><option>Fun</option><option>Other</option></select>
+          </div>
+        </div>
+        <div class="transaction-count" id="transaction-count" aria-live="polite"></div>
+        <div class="transaction-list" id="transaction-list" aria-live="polite"></div>
+      </article>
+    </section>
+    <footer class="footer-note">Your transactions are stored in the local SQLite file beside this app.</footer>
+  </main>
+
+  <section class="invite-panel" id="invite-panel" aria-labelledby="invite-title" hidden>
+    <div class="invite-card">
+      <h2 class="panel-title" id="invite-title">Invite someone</h2>
+      <p class="panel-subtitle">This one-time code expires in 7 days. Share it privately.</p>
+      <div class="invite-code" id="invite-code-display" aria-live="polite"></div>
+      <div class="auth-actions">
+        <button class="submit-button" id="copy-invite" type="button">Copy invite code</button>
+        <button class="auth-switch" id="close-invite" type="button">Close</button>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    // Keep the app useful without network access or third-party chart libraries.
+    (() => {
+      "use strict";
+
+      const LEGACY_STORAGE_KEY = "daybook.expenses.v1";
+      const TIME_ZONE = "Asia/Dhaka";
+      const EXPENSE_CATEGORIES = ["Food", "Transport", "Utilities", "Fun", "Other"];
+      const INCOME_CATEGORIES = ["Salary", "Freelance", "Business", "Gift", "Other"];
+      const CATEGORY_COLORS = {
+        Food: "#e78b69",
+        Transport: "#78aeb0",
+        Utilities: "#ebc46f",
+        Fun: "#aa9cbe",
+        Salary: "#78a76b",
+        Freelance: "#60947f",
+        Business: "#7d9b68",
+        Gift: "#c78473",
+        Other: "#a6b878"
+      };
+      const CATEGORY_ICONS = { Food: "◒", Transport: "↗", Utilities: "⌁", Fun: "✳", Salary: "৳", Freelance: "↗", Business: "▤", Gift: "✳", Other: "＋" };
+      const CATEGORY_TINTS = { Food: "#fff0e9", Transport: "#eaf5f3", Utilities: "#fbf4df", Fun: "#f2eff7", Salary: "#edf5e7", Freelance: "#eaf4ef", Business: "#eff4e8", Gift: "#fbefeb", Other: "#f0f4e8" };
+      const CURRENCY = new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT" });
+      const DATE_FORMAT = new Intl.DateTimeFormat("en-BD", { timeZone: TIME_ZONE, month: "short", day: "numeric", year: "numeric" });
+      const SHORT_DATE = new Intl.DateTimeFormat("en-BD", { timeZone: TIME_ZONE, month: "short", day: "numeric" });
+      const elements = {
+        authScreen: document.querySelector("#auth-screen"), authForm: document.querySelector("#auth-form"), authTitle: document.querySelector("#auth-title"),
+        authCopy: document.querySelector("#auth-copy"), authError: document.querySelector("#auth-error"), authSubmit: document.querySelector("#auth-submit"),
+        authSwitch: document.querySelector("#auth-switch"), authUsername: document.querySelector("#auth-username"), authPassword: document.querySelector("#auth-password"),
+        setupCodeWrap: document.querySelector("#setup-code-wrap"), setupCode: document.querySelector("#setup-code"),
+        inviteCodeWrap: document.querySelector("#invite-code-wrap"), inviteCode: document.querySelector("#invite-code"),
+        appShell: document.querySelector("#app-shell"), accountName: document.querySelector("#account-name"), inviteButton: document.querySelector("#invite-button"),
+        logoutButton: document.querySelector("#logout-button"), invitePanel: document.querySelector("#invite-panel"), inviteCodeDisplay: document.querySelector("#invite-code-display"),
+        copyInvite: document.querySelector("#copy-invite"), closeInvite: document.querySelector("#close-invite"),
+        form: document.querySelector("#expense-form"), amount: document.querySelector("#amount"), type: document.querySelector("#flow-type"), category: document.querySelector("#category"),
+        date: document.querySelector("#date"), note: document.querySelector("#note"), message: document.querySelector("#form-message"),
+        search: document.querySelector("#search"), filter: document.querySelector("#category-filter"), list: document.querySelector("#transaction-list"),
+        count: document.querySelector("#transaction-count"), categoryChart: document.querySelector("#category-chart"), trendChart: document.querySelector("#trend-chart"),
+        submitLabel: document.querySelector("#submit-label"), submitButton: document.querySelector("#submit-transaction"),
+        storageStatus: document.querySelector("#storage-status")
+      };
+      let expenses = [];
+      let databaseReady = false;
+      let csrfToken = "";
+      let authMode = "login";
+      let categoryChartInstance = null;
+      let trendChartInstance = null;
+
+      function localDateInputValue(date = new Date()) {
+        const parts = new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+        const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+        return `${values.year}-${values.month}-${values.day}`;
+      }
+
+      function loadExpenses() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY) || "[]");
+          if (!Array.isArray(saved)) return [];
+          return saved
+            .filter((item) => item && typeof item.id === "string" && Number.isFinite(item.amount) && item.amount > 0 && typeof item.date === "string" && Object.hasOwn(CATEGORY_COLORS, item.category))
+            .map((item) => ({ ...item, type: item.type === "income" ? "income" : "expense" }));
+        } catch (error) {
+          console.warn("Daybook could not read saved expenses.", error);
+          return [];
+        }
+      }
+
+      async function apiRequest(path, options = {}) {
+        const method = (options.method || "GET").toUpperCase();
+        const headers = { "Content-Type": "application/json", ...options.headers };
+        if (method !== "GET" && csrfToken) headers["X-CSRF-Token"] = csrfToken;
+        const response = await fetch(path, {
+          ...options,
+          method,
+          credentials: "same-origin",
+          headers
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || `Database request failed (${response.status}).`);
+        return result;
+      }
+
+      async function initializeDatabase() {
+        try {
+          await apiRequest("/api/transactions/legacy-import", {
+            method: "POST",
+            body: JSON.stringify({ transactions: loadExpenses() })
+          });
+          expenses = await apiRequest("/api/transactions");
+          try {
+            localStorage.removeItem(LEGACY_STORAGE_KEY);
+          } catch (error) {
+            console.warn("Daybook could not remove the retired browser copy.", error);
+          }
+          databaseReady = true;
+          elements.storageStatus.textContent = "Saved in local SQL database";
+          elements.submitButton.disabled = false;
+          render();
+        } catch (error) {
+          console.error("Daybook could not connect to its SQLite database.", error);
+          elements.storageStatus.textContent = "Database offline";
+          elements.message.textContent = `Could not load your records: ${error.message}`;
+          elements.submitButton.disabled = true;
+        }
+      }
+
+      function setAuthMode(mode) {
+        authMode = mode;
+        const isSetup = mode === "setup";
+        const isRegister = mode === "register";
+        elements.setupCodeWrap.hidden = !isSetup;
+        elements.setupCode.required = isSetup;
+        elements.inviteCodeWrap.hidden = !isRegister;
+        elements.inviteCode.required = isRegister;
+        elements.authSwitch.hidden = isSetup;
+        elements.authError.textContent = "";
+        if (isSetup) {
+          elements.authTitle.textContent = "Create the owner account.";
+          elements.authCopy.textContent = "Enter the one-time setup code from the server window. This account can invite others.";
+          elements.authSubmit.textContent = "Create owner account";
+        } else if (isRegister) {
+          elements.authTitle.textContent = "Make this ledger yours.";
+          elements.authCopy.textContent = "Each account gets a private set of income and expense records.";
+          elements.authSubmit.textContent = "Create account";
+          elements.authSwitch.textContent = "Back to sign in";
+        } else {
+          elements.authTitle.textContent = "Welcome to your ledger.";
+          elements.authCopy.textContent = "Sign in to see your private transactions.";
+          elements.authSubmit.textContent = "Sign in";
+          elements.authSwitch.textContent = "Create an account with an invite";
+        }
+      }
+
+      function showDashboard(user) {
+        elements.authScreen.hidden = true;
+        elements.appShell.hidden = false;
+        elements.accountName.textContent = user.username;
+        elements.inviteButton.hidden = !user.isAdmin;
+        initializeDatabase();
+      }
+
+      function showAuth(mode) {
+        databaseReady = false;
+        expenses = [];
+        elements.appShell.hidden = true;
+        elements.authScreen.hidden = false;
+        setAuthMode(mode);
+      }
+
+      async function startApp() {
+        try {
+          const status = await apiRequest("/api/status");
+          if (status.setupRequired) {
+            showAuth("setup");
+            return;
+          }
+          try {
+            const session = await apiRequest("/api/me");
+            csrfToken = session.csrfToken;
+            showDashboard(session.user);
+          } catch {
+            showAuth("login");
+          }
+        } catch (error) {
+          showAuth("login");
+          elements.authError.textContent = `Could not reach the Daybook server: ${error.message}`;
+        }
+      }
+
+      elements.authForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        elements.authSubmit.disabled = true;
+        elements.authError.textContent = "";
+        const formData = new FormData(elements.authForm);
+        const payload = {
+          username: String(formData.get("username") || "").trim(),
+          password: String(formData.get("password") || "")
+        };
+        if (authMode === "setup") payload.setupCode = String(formData.get("setupCode") || "").trim();
+        if (authMode === "register") payload.inviteCode = String(formData.get("inviteCode") || "").trim();
+        try {
+          const registering = authMode === "setup" || authMode === "register";
+          const result = await apiRequest(registering ? "/api/register" : "/api/login", {
+            method: "POST",
+            body: JSON.stringify(payload)
+          });
+          csrfToken = result.csrfToken;
+          elements.authForm.reset();
+          showDashboard(result.user);
+        } catch (error) {
+          elements.authError.textContent = error.message;
+        } finally {
+          elements.authSubmit.disabled = false;
+        }
+      });
+
+      elements.authSwitch.addEventListener("click", () => setAuthMode(authMode === "login" ? "register" : "login"));
+
+      elements.logoutButton.addEventListener("click", async () => {
+        try {
+          await apiRequest("/api/logout", { method: "POST", body: "{}" });
+        } catch (error) {
+          console.warn("Daybook sign-out request failed.", error);
+        }
+        csrfToken = "";
+        showAuth("login");
+      });
+
+      elements.inviteButton.addEventListener("click", async () => {
+        elements.inviteCodeDisplay.textContent = "Creating a one-time invite…";
+        elements.invitePanel.hidden = false;
+        try {
+          const invite = await apiRequest("/api/invites", { method: "POST", body: "{}" });
+          elements.inviteCodeDisplay.textContent = invite.code;
+        } catch (error) {
+          elements.inviteCodeDisplay.textContent = error.message;
+        }
+      });
+
+      elements.copyInvite.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(elements.inviteCodeDisplay.textContent);
+          elements.copyInvite.textContent = "Copied";
+        } catch {
+          elements.copyInvite.textContent = "Select and copy the code above";
+        }
+      });
+
+      elements.closeInvite.addEventListener("click", () => { elements.invitePanel.hidden = true; });
+      elements.invitePanel.addEventListener("click", (event) => {
+        if (event.target === elements.invitePanel) elements.invitePanel.hidden = true;
+      });
+
+      function formatAmount(amount) {
+        return CURRENCY.format(amount);
+      }
+
+      function expenseDate(dateString) {
+        const [year, month, day] = dateString.split("-").map(Number);
+        return new Date(Date.UTC(year, month - 1, day, 12));
+      }
+
+      function sortExpenses(items) {
+        return [...items].sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
+      }
+
+      function updateCategoryOptions() {
+        const categories = elements.type.value === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+        elements.category.replaceChildren(...categories.map((category) => new Option(category, category)));
+        elements.submitLabel.textContent = `Add ${elements.type.value}`;
+      }
+
+      function updateCategoryFilterOptions() {
+        const selected = elements.filter.value;
+        const categories = [...new Set([...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES])];
+        elements.filter.replaceChildren(new Option("All categories", "all"), ...categories.map((category) => new Option(category, category)));
+        if (["all", ...categories].includes(selected)) elements.filter.value = selected;
+      }
+
+      function renderSummary() {
+        const onlyExpenses = expenses.filter((item) => item.type === "expense");
+        const onlyIncome = expenses.filter((item) => item.type === "income");
+        const total = onlyExpenses.reduce((sum, item) => sum + item.amount, 0);
+        const totalIncome = onlyIncome.reduce((sum, item) => sum + item.amount, 0);
+        const currentMonth = localDateInputValue().slice(0, 7);
+        const monthExpenses = onlyExpenses.filter((item) => item.date.slice(0, 7) === currentMonth);
+        const monthTotal = monthExpenses.reduce((sum, item) => sum + item.amount, 0);
+        const categoryTotals = onlyExpenses.reduce((totals, item) => {
+          totals[item.category] = (totals[item.category] || 0) + item.amount;
+          return totals;
+        }, {});
+        const top = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0];
+
+        document.querySelector("#total-spent").textContent = formatAmount(total);
+        document.querySelector("#total-foot").textContent = `${onlyExpenses.length} ${onlyExpenses.length === 1 ? "expense" : "expenses"} recorded`;
+        document.querySelector("#total-income").textContent = formatAmount(totalIncome);
+        document.querySelector("#income-foot").textContent = `${onlyIncome.length} ${onlyIncome.length === 1 ? "income entry" : "income entries"} recorded`;
+        document.querySelector("#month-spent").textContent = formatAmount(monthTotal);
+        document.querySelector("#month-foot").textContent = monthExpenses.length ? `${monthExpenses.length} ${monthExpenses.length === 1 ? "expense" : "expenses"} this month` : "No expenses logged this month";
+        document.querySelector("#top-category").textContent = top ? top[0] : "—";
+        document.querySelector("#category-foot").textContent = top ? `${formatAmount(top[1])} across all time` : "Your spending mix will show up here";
+      }
+
+      function renderTransactions() {
+        const query = elements.search.value.trim().toLocaleLowerCase();
+        const category = elements.filter.value;
+        const matching = sortExpenses(expenses).filter((item) => {
+          const matchesCategory = category === "all" || item.category === category;
+          const searchable = `${item.note} ${item.category} ${item.type} ${item.date} ${item.amount}`.toLocaleLowerCase();
+          return matchesCategory && (!query || searchable.includes(query));
+        });
+        elements.count.textContent = `${matching.length} ${matching.length === 1 ? "transaction" : "transactions"}${query || category !== "all" ? " shown" : ""}`;
+        elements.list.replaceChildren();
+
+        if (matching.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "empty-state";
+          const title = document.createElement("strong");
+          title.textContent = expenses.length ? "Nothing found" : "A fresh page";
+          const copy = document.createElement("span");
+          copy.textContent = expenses.length ? "Try another search or category." : "Add your first expense to see it here.";
+          empty.append(title, copy);
+          elements.list.append(empty);
+          return;
+        }
+
+        for (const item of matching) {
+          const row = document.createElement("div");
+          row.className = "transaction-row";
+          const main = document.createElement("div");
+          main.className = "transaction-main";
+          const icon = document.createElement("span");
+          icon.className = "category-icon";
+          icon.style.backgroundColor = CATEGORY_TINTS[item.category];
+          icon.style.color = CATEGORY_COLORS[item.category];
+          icon.setAttribute("aria-hidden", "true");
+          icon.textContent = CATEGORY_ICONS[item.category];
+          const description = document.createElement("div");
+          description.className = "transaction-description";
+          const note = document.createElement("div");
+          note.className = "transaction-note";
+          note.textContent = item.note || item.category;
+          const meta = document.createElement("div");
+          meta.className = "transaction-meta";
+          meta.textContent = `${item.type === "income" ? "Income" : "Expense"} · ${item.category}`;
+          description.append(note, meta);
+          main.append(icon, description);
+
+          const date = document.createElement("time");
+          date.className = "transaction-date";
+          date.dateTime = item.date;
+          date.textContent = DATE_FORMAT.format(expenseDate(item.date));
+
+          const end = document.createElement("div");
+          end.className = "transaction-end";
+          const amount = document.createElement("span");
+          amount.className = `transaction-amount${item.type === "income" ? " income" : ""}`;
+          amount.textContent = `${item.type === "income" ? "+" : ""}${formatAmount(item.amount)}`;
+          const remove = document.createElement("button");
+          remove.className = "delete-button";
+          remove.type = "button";
+          remove.setAttribute("aria-label", `Delete ${item.category} ${item.type} entry for ${formatAmount(item.amount)}`);
+          remove.title = "Delete expense";
+          remove.textContent = "×";
+          remove.title = `Delete ${item.type} entry`;
+          remove.addEventListener("click", () => deleteExpense(item.id, item.type));
+          end.append(amount, remove);
+          row.append(main, date, end);
+          elements.list.append(row);
+        }
+      }
+
+      function categoryData() {
+        const totals = expenses.filter((item) => item.type === "expense").reduce((result, item) => {
+          result[item.category] = (result[item.category] || 0) + item.amount;
+          return result;
+        }, {});
+        return Object.entries(totals).sort((a, b) => b[1] - a[1]);
+      }
+
+      function renderCategoryFallback(data) {
+        elements.categoryChart.replaceChildren();
+        if (!data.length) {
+          const empty = document.createElement("div");
+          empty.className = "chart-empty";
+          empty.textContent = "Add an expense to see your spending mix.";
+          elements.categoryChart.append(empty);
+          return;
+        }
+
+        const total = data.reduce((sum, [, amount]) => sum + amount, 0);
+        const radius = 42;
+        const circumference = 2 * Math.PI * radius;
+        let offset = 0;
+        const circles = data.map(([category, amount]) => {
+          const length = (amount / total) * circumference;
+          const circle = `<circle cx="60" cy="60" r="${radius}" fill="none" stroke="${CATEGORY_COLORS[category]}" stroke-width="14" stroke-dasharray="${length} ${circumference - length}" stroke-dashoffset="${-offset}"><title>${category}: ${formatAmount(amount)}</title></circle>`;
+          offset += length;
+          return circle;
+        }).join("");
+        const chart = document.createElement("div");
+        chart.innerHTML = `<svg class="category-canvas" viewBox="0 0 120 120" role="img" aria-label="Spending by category"><circle cx="60" cy="60" r="${radius}" fill="none" stroke="#edf0eb" stroke-width="14" transform="rotate(-90 60 60)"></circle><g transform="rotate(-90 60 60)">${circles}</g><text x="60" y="57" text-anchor="middle" fill="#1b2822" font-size="12" font-family="Trebuchet MS, sans-serif" font-weight="700">${data.length}</text><text x="60" y="70" text-anchor="middle" fill="#89928b" font-size="6" font-family="Trebuchet MS, sans-serif">CATEGORIES</text></svg>`;
+        const legend = document.createElement("div");
+        legend.className = "category-legend";
+        for (const [category, amount] of data) {
+          const row = document.createElement("div");
+          row.className = "legend-row";
+          const name = document.createElement("div");
+          name.className = "legend-name";
+          const dot = document.createElement("span");
+          dot.className = "legend-dot";
+          dot.style.backgroundColor = CATEGORY_COLORS[category];
+          const label = document.createElement("span");
+          label.textContent = category;
+          name.append(dot, label);
+          const value = document.createElement("span");
+          value.className = "legend-amount";
+          value.textContent = formatAmount(amount);
+          row.append(name, value);
+          legend.append(row);
+        }
+        chart.className = "fallback-donut";
+        elements.categoryChart.classList.add("category-content");
+        elements.categoryChart.append(chart, legend);
+      }
+
+      function trendData() {
+        const days = [];
+        const totals = new Map();
+        const today = new Date();
+        for (let offset = 13; offset >= 0; offset -= 1) {
+          const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset);
+          const key = localDateInputValue(day);
+          days.push({ key, label: SHORT_DATE.format(day) });
+          totals.set(key, 0);
+        }
+        for (const item of expenses) {
+          if (item.type === "expense" && totals.has(item.date)) totals.set(item.date, totals.get(item.date) + item.amount);
+        }
+        return { days, values: days.map(({ key }) => totals.get(key)) };
+      }
+
+      function renderTrendFallback({ days, values }) {
+        elements.trendChart.replaceChildren();
+        if (!expenses.some((item) => item.type === "expense")) {
+          const empty = document.createElement("div");
+          empty.className = "chart-empty";
+          empty.textContent = "Your daily spending will take shape here.";
+          elements.trendChart.append(empty);
+          return;
+        }
+        const width = 520;
+        const height = 185;
+        const left = 14;
+        const right = 10;
+        const top = 14;
+        const bottom = 29;
+        const max = Math.max(...values, 1) * 1.2;
+        const points = values.map((value, index) => {
+          const x = left + index * ((width - left - right) / (values.length - 1));
+          const y = top + (height - top - bottom) * (1 - value / max);
+          return { x, y, value, label: days[index].label };
+        });
+        const line = points.map(({ x, y }, index) => `${index === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+        const area = `${line} L${points.at(-1).x.toFixed(1)} ${height - bottom} L${points[0].x.toFixed(1)} ${height - bottom} Z`;
+        const grid = [0, 1, 2, 3].map((index) => {
+          const y = top + index * ((height - top - bottom) / 3);
+          return `<line x1="${left}" y1="${y}" x2="${width - right}" y2="${y}" stroke="#edf0eb" stroke-dasharray="3 5"></line>`;
+        }).join("");
+        const dots = points.map(({ x, y, value, label }) => `<circle cx="${x}" cy="${y}" r="3.2" fill="#55713a" stroke="#fff" stroke-width="2"><title>${label}: ${formatAmount(value)}</title></circle>`).join("");
+        const labels = points.filter((_, index) => index % 3 === 0 || index === points.length - 1).map(({ x, label }) => `<text x="${x}" y="${height - 7}" text-anchor="middle" fill="#89928b" font-size="9" font-family="Trebuchet MS, sans-serif">${label}</text>`).join("");
+        elements.trendChart.innerHTML = `<svg class="trend-canvas" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Daily spending trend over the last 14 days">${grid}<path d="${area}" fill="rgb(187 223 105 / 20%)"></path><path d="${line}" fill="none" stroke="#789746" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path>${dots}${labels}</svg>`;
+      }
+
+      function renderCharts() {
+        const categories = categoryData();
+        const trend = trendData();
+        if (typeof window.Chart !== "function") {
+          if (categoryChartInstance) categoryChartInstance.destroy();
+          if (trendChartInstance) trendChartInstance.destroy();
+          categoryChartInstance = null;
+          trendChartInstance = null;
+          renderCategoryFallback(categories);
+          renderTrendFallback(trend);
+          return;
+        }
+
+        if (categoryChartInstance) categoryChartInstance.destroy();
+        if (trendChartInstance) trendChartInstance.destroy();
+        elements.categoryChart.classList.add("category-content");
+        elements.categoryChart.replaceChildren();
+        elements.trendChart.replaceChildren();
+        if (!categories.length) {
+          renderCategoryFallback(categories);
+        } else {
+          const canvas = document.createElement("canvas");
+          canvas.className = "category-canvas";
+          canvas.setAttribute("aria-label", "Interactive spending breakdown by category");
+          elements.categoryChart.append(canvas);
+          const legend = document.createElement("div");
+          legend.className = "category-legend";
+          categories.forEach(([category, amount]) => {
+            const row = document.createElement("div");
+            row.className = "legend-row";
+            const name = document.createElement("div");
+            name.className = "legend-name";
+            const dot = document.createElement("span");
+            dot.className = "legend-dot";
+            dot.style.backgroundColor = CATEGORY_COLORS[category];
+            const label = document.createElement("span");
+            label.textContent = category;
+            name.append(dot, label);
+            const value = document.createElement("span");
+            value.className = "legend-amount";
+            value.textContent = formatAmount(amount);
+            row.append(name, value);
+            legend.append(row);
+          });
+          elements.categoryChart.append(legend);
+          categoryChartInstance = new window.Chart(canvas, {
+            type: "doughnut",
+            data: { labels: categories.map(([category]) => category), datasets: [{ data: categories.map(([, amount]) => amount), backgroundColor: categories.map(([category]) => CATEGORY_COLORS[category]), borderWidth: 0, hoverOffset: 5 }] },
+            options: { responsive: true, maintainAspectRatio: false, cutout: "72%", plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => ` ${context.label}: ${formatAmount(context.parsed)}` } } } }
+          });
+        }
+        if (!expenses.some((item) => item.type === "expense")) {
+          renderTrendFallback(trend);
+        } else {
+          const canvas = document.createElement("canvas");
+          canvas.className = "trend-canvas";
+          canvas.setAttribute("aria-label", "Interactive daily spending trend over the last 14 days");
+          elements.trendChart.append(canvas);
+          trendChartInstance = new window.Chart(canvas, {
+            type: "line",
+            data: { labels: trend.days.map(({ label }) => label), datasets: [{ data: trend.values, borderColor: "#789746", backgroundColor: "rgb(187 223 105 / 21%)", fill: true, tension: 0.35, pointRadius: 2, pointHoverRadius: 5, pointBackgroundColor: "#55713a", borderWidth: 2 }] },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              interaction: { intersect: false, mode: "index" },
+              plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => ` ${formatAmount(context.parsed.y)}` } } },
+              scales: {
+                x: { grid: { display: false }, border: { display: false }, ticks: { color: "#89928b", maxTicksLimit: 7, font: { size: 10 } } },
+                y: { beginAtZero: true, border: { display: false }, grid: { color: "#edf0eb", tickLength: 0 }, ticks: { color: "#89928b", maxTicksLimit: 4, padding: 8, font: { size: 9 }, callback: (value) => CURRENCY.format(value) } }
+              }
+            }
+          });
+        }
+      }
+
+      function render() {
+        renderSummary();
+        renderTransactions();
+        renderCharts();
+      }
+
+      async function deleteExpense(id, type) {
+        try {
+          await apiRequest(`/api/transactions/${encodeURIComponent(id)}`, { method: "DELETE" });
+          expenses = expenses.filter((item) => item.id !== id);
+          render();
+          elements.message.textContent = `${type === "income" ? "Income" : "Expense"} deleted.`;
+        } catch (error) {
+          elements.message.textContent = `Could not delete transaction: ${error.message}`;
+        }
+      }
+
+      elements.form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!databaseReady) {
+          elements.message.textContent = "The local database is not connected. Start the app with run.bat.";
+          return;
+        }
+        const rawAmount = String(elements.amount.value).trim();
+        const amount = Number(rawAmount);
+        const decimalPlaces = rawAmount.includes(".") ? rawAmount.split(".", 2)[1].length : 0;
+        if (!Number.isFinite(amount) || amount <= 0 || decimalPlaces > 2) {
+          elements.message.textContent = decimalPlaces > 2 ? "Enter a valid amount with no more than two decimal places." : "Enter an amount greater than zero.";
+          elements.amount.focus();
+          return;
+        }
+        const expense = {
+          id: typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          type: elements.type.value,
+          amount: Math.round(amount * 100) / 100,
+          category: elements.category.value,
+          date: elements.date.value,
+          note: elements.note.value.trim(),
+          createdAt: Date.now()
+        };
+        if (!expense.date || Number.isNaN(expenseDate(expense.date).getTime())) {
+          elements.message.textContent = "Choose a valid date for this expense.";
+          elements.date.focus();
+          return;
+        }
+        elements.submitButton.disabled = true;
+        try {
+          const saved = await apiRequest("/api/transactions", {
+            method: "POST",
+            body: JSON.stringify(expense)
+          });
+          expenses.push(saved);
+          render();
+          elements.form.reset();
+          updateCategoryOptions();
+          elements.date.value = localDateInputValue();
+          elements.message.textContent = `${expense.type === "income" ? "Income" : "Expense"} saved to the local SQL database.`;
+          elements.amount.focus();
+        } catch (error) {
+          elements.message.textContent = `Could not save transaction: ${error.message}`;
+        } finally {
+          elements.submitButton.disabled = !databaseReady;
+        }
+      });
+
+      elements.type.addEventListener("change", updateCategoryOptions);
+      elements.search.addEventListener("input", renderTransactions);
+      elements.filter.addEventListener("change", renderTransactions);
+      window.addEventListener("chartjs-ready", renderCharts);
+      updateCategoryOptions();
+      updateCategoryFilterOptions();
+      document.querySelector("#today-label").textContent = DATE_FORMAT.format(new Date());
+      elements.date.value = localDateInputValue();
+      elements.submitButton.disabled = true;
+      startApp();
+    })();
+  </script>
+</body>
+</html>

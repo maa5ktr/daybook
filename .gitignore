@@ -1,0 +1,13 @@
+daybook.sqlite3
+daybook.sqlite3-shm
+daybook.sqlite3-wal
+__pycache__/
+docs/supabase-config.js
+backups/
+_site/
+/server.py
+/test_server.py
+/run.bat
+/requirements.txt
+/env.example
+/files.zip
