@@ -105,7 +105,7 @@
       <h1 class="auth-title" id="auth-title">Your money, in motion.</h1>
       <p class="auth-copy" id="auth-copy">Sign in to see your private transactions.</p>
       <form class="auth-form" id="auth-form">
-        <div id="invite-wrap" hidden><label for="auth-invite">Invitation code</label><input class="control" id="auth-invite" autocomplete="one-time-code"></div>
+        <div id="invite-wrap" hidden><label for="auth-invite">First-time setup code or invitation</label><input class="control" id="auth-invite" autocomplete="one-time-code"></div>
         <div id="display-name-wrap" hidden><label for="display-name">Name</label><input class="control" id="display-name" maxlength="50" autocomplete="name"></div>
         <div><label for="auth-email">Email</label><input class="control" id="auth-email" type="email" required autocomplete="email"></div>
         <div><label for="auth-password">Password</label><input class="control" id="auth-password" type="password" required minlength="10" autocomplete="current-password"></div>
@@ -187,14 +187,14 @@
         ui.auth.hidden = false;
         ui.app.hidden = true;
         ui.inviteWrap.hidden = mode !== "register";
-        ui.invite.required = mode === "register";
+        ui.invite.required = false;
         ui.nameWrap.hidden = mode !== "register";
         ui.authMessage.className = "auth-message";
         ui.authMessage.textContent = "";
         ui.authTitle.textContent = mode === "register" ? "Make this ledger yours." : "Your money, in motion.";
-        ui.authCopy.textContent = mode === "register" ? "Create your own private account with an invite from the owner." : "Sign in to your private spending dashboard.";
+        ui.authCopy.textContent = mode === "register" ? "Use the one-time setup code to create the owner account. After setup, new accounts need an invitation." : "Sign in to your private spending dashboard.";
         ui.authSubmit.textContent = mode === "register" ? "Create account" : "Sign in";
-        ui.authSwitch.textContent = mode === "register" ? "Back to sign in" : "Create account with an invite";
+        ui.authSwitch.textContent = mode === "register" ? "Back to sign in" : "Create account with a setup code or invite";
       }
 
       function updateCategories() {
@@ -442,7 +442,8 @@
             if (data.session) await showDashboard(data.user);
           } else {
             if (password.length < 10) throw new Error("Use a password with at least 10 characters.");
-            const { data, error } = await client.auth.signUp({ email, password, options:{ data:{ invite_code:ui.invite.value.trim(), display_name:ui.displayName.value.trim() }, emailRedirectTo:location.href } });
+            const accessCode = ui.invite.value.trim();
+            const { data, error } = await client.auth.signUp({ email, password, options:{ data:{ invite_code:accessCode, owner_setup_code:accessCode, display_name:ui.displayName.value.trim() }, emailRedirectTo:location.href } });
             if (error) throw error;
             if (data.session) await showDashboard(data.user);
             else {
