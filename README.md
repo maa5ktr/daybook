@@ -4,17 +4,17 @@ Daybook is a mobile-friendly spending and income tracker. The original local ver
 
 ## GitHub Pages and Supabase
 
-The GitHub Pages site is publicly reachable, so do not treat its URL as a password. Supabase Auth signs users in, Postgres Row Level Security confines every transaction to its account, and signup requires a valid one-use invitation. The Supabase publishable/anon key is designed to be public; never publish a Supabase secret or service-role key.
+The GitHub Pages site is publicly reachable, so do not treat its URL as a password. Supabase Auth signs users in, Postgres Row Level Security confines every transaction to its account, and signup requires a one-use owner setup code or invitation. The Supabase publishable/anon key is designed to be public; never publish a Supabase secret or service-role key.
 
 ### 1. Create the Supabase project
 
 Create a project at <https://supabase.com/dashboard>. In **SQL Editor**, run all of [`supabase/schema.sql`](supabase/schema.sql). It creates the tables, invite functions, signup trigger, and per-account RLS policies.
 
-### 2. Create the owner before publishing
+### 2. Set up the owner account
 
-Before enabling GitHub Pages, open **Authentication → Users → Add user** in Supabase and create your owner with an email and password. The database trigger makes the first account the owner. Creating it before the site is public prevents a stranger from claiming the first-account slot. Keep your Supabase project's owner login separate from your Daybook account.
+In the Supabase SQL Editor, run `select public.create_daybook_owner_setup_code();` and copy the returned code. It expires after 24 hours and can only be used once. Open the Daybook site, choose **Create account with a setup code or invite**, and register using this code. That first account becomes the owner. Share the code only with the intended owner; the public site URL alone cannot claim the owner account. Keep your Supabase project's owner login separate from your Daybook account.
 
-The simplest signup flow is **Authentication → Providers → Email → Confirm email: off**. Invite-only database checks still gate every additional account, but email addresses are not verified and password recovery by email will not work. If you keep email confirmations on, configure a custom SMTP provider and set the deployed site as an allowed redirect URL.
+The simplest signup flow is **Authentication → Providers → Email → Confirm email: off**. Invitation checks still gate every additional account, but email addresses are not verified and password recovery by email will not work. If you keep email confirmations on, configure a custom SMTP provider and set the deployed site as an allowed redirect URL.
 
 ### 3. Publish the static app
 
@@ -29,7 +29,7 @@ The site address will look like `https://YOUR-GITHUB-NAME.github.io/YOUR-REPOSIT
 
 ### 4. Invite friends
 
-Sign in as the owner on the Pages site and choose **Invite**. Send the one-use code privately; it expires in seven days. A friend opens the site, chooses **Create account with an invite**, and registers with their own email and password. Their income and expense records are private to their account.
+Sign in as the owner on the Pages site and choose **Invite**. Send the one-use code privately; it expires in seven days. A friend opens the site, chooses **Create account with a setup code or invite**, and registers with their own email and password. Their income and expense records are private to their account.
 
 ### 5. Import existing PC data
 
