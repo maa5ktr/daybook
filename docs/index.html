@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f5f0">
+  <title>Daybook | Personal spending</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="./supabase-config.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root { color-scheme: light; --paper:#f4f5f0; --surface:#fff; --ink:#1b2822; --muted:#78817b; --line:#e8ebe5; --green:#bbdf69; --green-dark:#46632c; --coral:#e78b69; --blue:#78aeb0; --yellow:#ebc46f; --violet:#aa9cbe; --shadow:0 12px 32px rgb(31 43 35 / 5%); }
+    * { box-sizing:border-box; }
+    body { margin:0; background-color:var(--paper); background-image:radial-gradient(#dce1d8 .65px,transparent .65px); background-size:17px 17px; color:var(--ink); font-family:"Trebuchet MS","Segoe UI",sans-serif; -webkit-font-smoothing:antialiased; }
+    button,input,select { font:inherit; } button { cursor:pointer; }
+    .shell { width:min(1160px,calc(100% - 36px)); margin:auto; padding:24px 0 42px; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:34px; }
+    .brand { display:flex; align-items:center; gap:11px; font-weight:800; }
+    .mark { display:grid; width:35px; height:35px; place-items:center; border-radius:12px; background:var(--ink); color:var(--green); font-size:18px; }
+    .brand small { display:block; margin-top:2px; color:var(--muted); font-size:10px; letter-spacing:.11em; text-transform:uppercase; }
+    .top-actions { display:flex; align-items:center; gap:8px; }
+    .account-name { max-width:150px; overflow:hidden; color:#59635d; font-size:12px; font-weight:700; text-overflow:ellipsis; }
+    .quiet-button,.secondary-button { min-height:36px; border:1px solid var(--line); border-radius:8px; background:#fff; padding:0 11px; color:#53604f; font-size:11px; font-weight:700; }
+    .quiet-button:hover,.secondary-button:hover { background:#f8faf5; }
+    .connection { color:#687361; font-size:10px; white-space:nowrap; }
+    .intro { display:flex; justify-content:space-between; gap:16px; align-items:end; margin-bottom:22px; }
+    .eyebrow { color:var(--green-dark); font-size:10px; font-weight:800; letter-spacing:.15em; text-transform:uppercase; }
+    h1 { margin:8px 0 0; font:500 clamp(32px,5vw,46px)/1.08 Georgia,"Times New Roman",serif; }
+    .intro p { margin:9px 0 0; color:var(--muted); font-size:13px; }
+    .date-label { color:var(--muted); font-size:10px; font-weight:700; text-align:right; }
+    .date-label strong { display:block; margin-top:5px; color:var(--ink); font-size:13px; }
+    .stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:14px; }
+    .stat,.panel { min-width:0; border:1px solid var(--line); border-radius:14px; background:var(--surface); box-shadow:var(--shadow); }
+    .stat { min-height:118px; padding:18px; }
+    .stat.primary { border-color:var(--ink); background:var(--ink); color:white; }
+    .stat-label { color:var(--muted); font-size:11px; font-weight:700; }
+    .primary .stat-label { color:#bdc7c0; }
+    .stat-value { margin-top:14px; font:600 26px/1 Georgia,"Times New Roman",serif; overflow-wrap:anywhere; }
+    .income-value { color:#63863a; }
+    .stat-foot { margin-top:8px; color:var(--muted); font-size:10px; }
+    .primary .stat-foot { color:#aab5ad; }
+    .charts { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+    .panel-head { display:flex; justify-content:space-between; gap:12px; align-items:start; padding:18px 19px 0; }
+    h2 { margin:0; font:600 18px/1.2 Georgia,"Times New Roman",serif; }
+    .subtitle { margin:5px 0 0; color:var(--muted); font-size:10px; }
+    .chart-area { height:210px; padding:16px 18px 13px; }
+    .chart-inner { position:relative; height:100%; }
+    .chart-empty { display:grid; height:100%; place-items:center; color:#909a92; font-size:11px; text-align:center; }
+    .work { display:grid; grid-template-columns:minmax(260px,.72fr) minmax(0,1.6fr); gap:14px; align-items:start; }
+    .form-panel { padding-bottom:18px; }
+    .form-panel .panel-head { padding-bottom:16px; }
+    .form-grid { display:grid; gap:11px; padding:0 18px; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    label { display:block; margin-bottom:6px; color:#59635d; font-size:10px; font-weight:700; }
+    .control { width:100%; min-height:40px; border:1px solid #e2e7df; border-radius:8px; outline:none; background:#fbfcf9; padding:0 10px; color:var(--ink); font-size:12px; }
+    .control:focus { border-color:#9abb63; box-shadow:0 0 0 3px rgb(187 223 105 / 22%); }
+    .submit { min-height:43px; border:0; border-radius:8px; background:var(--green); color:#25331d; font-size:12px; font-weight:800; }
+    .submit:hover { background:#c9e984; }
+    .submit:disabled { cursor:not-allowed; opacity:.55; }
+    .form-message,.auth-message { min-height:16px; margin:0; color:#71806c; font-size:10px; }
+    .panel.transactions { overflow:hidden; }
+    .transaction-heading { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:18px 19px 14px; }
+    .transaction-tools { display:flex; gap:7px; }
+    .search { width:min(180px,24vw); }
+    .filter { max-width:130px; }
+    .count { padding:0 19px 9px; color:#89928b; font-size:10px; }
+    .list { max-height:380px; overflow:auto; }
+    .row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:12px; align-items:center; border-top:1px solid #f0f2ee; padding:11px 19px; }
+    .row-main { display:flex; min-width:0; gap:10px; align-items:center; }
+    .icon { display:grid; flex:0 0 34px; width:34px; height:34px; place-items:center; border-radius:10px; font-size:14px; }
+    .description { min-width:0; }
+    .note,.meta { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .note { font-size:11px; font-weight:700; }
+    .meta { margin-top:3px; color:#89928b; font-size:9px; }
+    .row-date { color:#7f8981; font-size:9px; white-space:nowrap; }
+    .row-end { display:flex; min-width:100px; justify-content:end; gap:8px; align-items:center; }
+    .amount { font-size:11px; font-weight:800; white-space:nowrap; }
+    .amount.income { color:#63863a; }
+    .delete { width:26px; height:26px; border:0; border-radius:7px; background:transparent; color:#a4aca6; font-size:16px; opacity:0; }
+    .row:hover .delete,.delete:focus-visible { opacity:1; }
+    .delete:hover { background:#fff0eb; color:#b85034; }
+    .empty { padding:34px 18px; color:#8a938c; font-size:11px; text-align:center; }
+    .empty strong { display:block; margin-bottom:5px; color:#59635d; font:600 16px Georgia,"Times New Roman",serif; }
+    .footer { margin-top:18px; color:#929a93; font-size:9px; text-align:center; }
+    .auth-shell { width:min(420px,calc(100% - 30px)); margin:9vh auto 40px; }
+    .auth-card { border:1px solid var(--line); border-radius:16px; background:#fff; padding:24px; box-shadow:var(--shadow); }
+    .auth-title { margin:21px 0 0; font:500 32px/1.08 Georgia,"Times New Roman",serif; }
+    .auth-copy { margin:9px 0 20px; color:var(--muted); font-size:12px; line-height:1.5; }
+    .auth-form { display:grid; gap:12px; }
+    .auth-switch { min-height:39px; border:1px solid var(--line); border-radius:8px; background:#fff; color:#56624f; font-size:11px; font-weight:700; }
+    .error { color:#b85034; }
+    .modal-backdrop { position:fixed; z-index:5; inset:0; display:grid; place-items:center; background:rgb(24 34 29 / 35%); padding:18px; }
+    .modal-card { width:min(400px,100%); border-radius:14px; background:#fff; padding:22px; box-shadow:0 20px 70px rgb(16 28 20 / 18%); }
+    .invite-code { overflow-wrap:anywhere; margin:15px 0; border:1px dashed #cdd6c4; border-radius:8px; background:#f8faf5; padding:12px; font:700 13px/1.5 ui-monospace,Consolas,monospace; user-select:all; }
+    [hidden] { display:none!important; }
+    @media(max-width:850px) { .stats{grid-template-columns:1fr 1fr}.charts{grid-template-columns:1fr}.work{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr 1fr}.form-grid .wide,.form-grid .submit,.form-grid .form-message{grid-column:1/-1} }
+    @media(max-width:520px) { .shell{width:calc(100% - 26px);padding-top:16px}.topbar{margin-bottom:27px}.connection{display:none}.account-name{max-width:85px;font-size:10px}.quiet-button,.secondary-button{padding:0 8px;font-size:10px}.intro{align-items:start}.intro p{max-width:230px;font-size:11px;line-height:1.45}.date-label{font-size:9px}.date-label strong{max-width:90px;font-size:10px}.stat{min-height:105px;padding:14px}.stat-value{font-size:22px}.charts{gap:10px}.chart-area{height:205px;padding:13px}.transaction-heading{flex-direction:column;align-items:stretch;padding:16px 13px 13px}.transaction-tools{width:100%}.search{width:auto;min-width:0;flex:1}.filter{max-width:120px}.count{padding-right:13px;padding-left:13px}.row{grid-template-columns:minmax(0,1fr) auto;gap:6px;padding:10px 13px}.row-date{display:none}.row-end{min-width:0}.delete{opacity:1}.form-grid{gap:10px;padding:0 14px}.panel-head{padding-right:14px;padding-left:14px} }
+    @media(prefers-reduced-motion:reduce) { *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important} }
+  </style>
+</head>
+<body>
+  <main class="auth-shell" id="auth-screen" hidden>
+    <section class="auth-card">
+      <div class="brand"><div class="mark">d.</div><div>daybook<small>your private ledger</small></div></div>
+      <h1 class="auth-title" id="auth-title">Your money, in motion.</h1>
+      <p class="auth-copy" id="auth-copy">Sign in to see your private transactions.</p>
+      <form class="auth-form" id="auth-form">
+        <div id="invite-wrap" hidden><label for="auth-invite">Invitation code</label><input class="control" id="auth-invite" autocomplete="one-time-code"></div>
+        <div id="display-name-wrap" hidden><label for="display-name">Name</label><input class="control" id="display-name" maxlength="50" autocomplete="name"></div>
+        <div><label for="auth-email">Email</label><input class="control" id="auth-email" type="email" required autocomplete="email"></div>
+        <div><label for="auth-password">Password</label><input class="control" id="auth-password" type="password" required minlength="10" autocomplete="current-password"></div>
+        <p class="auth-message" id="auth-message" aria-live="polite"></p>
+        <button class="submit" id="auth-submit" type="submit">Sign in</button>
+        <button class="auth-switch" id="auth-switch" type="button">Create an account with an invite</button>
+      </form>
+    </section>
+  </main>
+
+  <main class="shell" id="app" hidden>
+    <header class="topbar">
+      <div class="brand"><div class="mark">d.</div><div>daybook<small>personal spending</small></div></div>
+      <div class="top-actions"><span class="account-name" id="account-name"></span><span class="connection">Cloud synced</span><button class="quiet-button" id="invite-button" type="button" hidden>Invite</button><button class="quiet-button" id="export-button" type="button">Export</button><button class="quiet-button" id="signout-button" type="button">Sign out</button></div>
+    </header>
+    <section class="intro"><div><div class="eyebrow">A little more clarity</div><h1>Your money, in motion.</h1><p>A quiet place to keep track of where it goes.</p></div><div class="date-label">TODAY<strong id="today"></strong></div></section>
+    <section class="stats" aria-label="Income and spending summary">
+      <article class="stat primary"><div class="stat-label">Total spent</div><div class="stat-value" id="spent-total">BDT 0.00</div><div class="stat-foot" id="spent-count">0 expenses</div></article>
+      <article class="stat"><div class="stat-label">Income tracked</div><div class="stat-value income-value" id="income-total">BDT 0.00</div><div class="stat-foot" id="income-count">0 income entries</div></article>
+      <article class="stat"><div class="stat-label">Spent this month</div><div class="stat-value" id="month-total">BDT 0.00</div><div class="stat-foot" id="month-count">No expenses this month</div></article>
+      <article class="stat"><div class="stat-label">Top category</div><div class="stat-value" id="top-category">—</div><div class="stat-foot" id="top-total">No spending yet</div></article>
+    </section>
+    <section class="charts" aria-label="Spending analytics">
+      <article class="panel"><div class="panel-head"><div><h2>Where it goes</h2><p class="subtitle">Expense breakdown by category</p></div></div><div class="chart-area"><div class="chart-inner" id="category-chart"></div></div></article>
+      <article class="panel"><div class="panel-head"><div><h2>Spending rhythm</h2><p class="subtitle">Daily expenses over the last 14 days</p></div></div><div class="chart-area"><div class="chart-inner" id="trend-chart"></div></div></article>
+    </section>
+    <section class="work" aria-label="Transaction entry and history">
+      <article class="panel form-panel"><div class="panel-head"><div><h2>Add a transaction</h2><p class="subtitle">Record money coming in or going out.</p></div></div>
+        <form class="form-grid" id="transaction-form">
+          <div class="form-row"><div><label for="amount">Amount (BDT)</label><input class="control" id="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" required></div><div><label for="flow">Type</label><select class="control" id="flow"><option value="expense">Expense</option><option value="income">Income</option></select></div></div>
+          <div class="form-row"><div><label for="category">Category</label><select class="control" id="category"></select></div><div><label for="date">Date (Dhaka)</label><input class="control" id="date" type="date" required></div></div>
+          <div class="wide"><label for="note">Note <span style="font-weight:400;color:#929a93">(optional)</span></label><input class="control" id="note" maxlength="80" placeholder="What was it for?"></div>
+          <p class="form-message" id="form-message" aria-live="polite"></p><button class="submit" id="save-button" type="submit">Add expense</button>
+        </form>
+      </article>
+      <article class="panel transactions"><div class="transaction-heading"><div><h2>Recent transactions</h2><p class="subtitle">Only you can see your entries.</p></div><div class="transaction-tools"><label class="sr-only" for="search">Search transactions</label><input class="control search" id="search" type="search" placeholder="Search transactions…"><label class="sr-only" for="filter">Filter category</label><select class="control filter" id="filter"><option value="all">All categories</option></select></div></div><div class="count" id="transaction-count" aria-live="polite"></div><div class="list" id="transaction-list" aria-live="polite"></div></article>
+    </section>
+    <footer class="footer">Your entries are stored in your account's private cloud database.</footer>
+  </main>
+
+  <section class="modal-backdrop" id="invite-modal" hidden><div class="modal-card"><h2>Invite a friend</h2><p class="subtitle">This one-use code expires after seven days. Share it privately.</p><div class="invite-code" id="invite-code" aria-live="polite"></div><div class="transaction-tools"><button class="submit" id="copy-invite" type="button">Copy code</button><button class="secondary-button" id="close-invite" type="button">Close</button></div></div></section>
+
+  <script>
+    (() => {
+      "use strict";
+      const categories = { expense: ["Food", "Transport", "Utilities", "Fun", "Other"], income: ["Salary", "Freelance", "Business", "Gift", "Other"] };
+      const colors = { Food: "#e78b69", Transport: "#78aeb0", Utilities: "#ebc46f", Fun: "#aa9cbe", Salary: "#78a76b", Freelance: "#60947f", Business: "#7d9b68", Gift: "#c78473", Other: "#a6b878" };
+      const tints = { Food: "#fff0e9", Transport: "#eaf5f3", Utilities: "#fbf4df", Fun: "#f2eff7", Salary: "#edf5e7", Freelance: "#eaf4ef", Business: "#eff4e8", Gift: "#fbefeb", Other: "#f0f4e8" };
+      const icons = { Food: "◒", Transport: "↗", Utilities: "⌁", Fun: "✳", Salary: "৳", Freelance: "↗", Business: "▤", Gift: "✳", Other: "＋" };
+      const money = new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT" });
+      const timeZone = "Asia/Dhaka";
+      const dateFormat = new Intl.DateTimeFormat("en-BD", { timeZone, month: "short", day: "numeric", year: "numeric" });
+      const shortDate = new Intl.DateTimeFormat("en-BD", { timeZone, month: "short", day: "numeric" });
+      const $ = (selector) => document.querySelector(selector);
+      const ui = {
+        auth: $("#auth-screen"), authForm: $("#auth-form"), authTitle: $("#auth-title"), authCopy: $("#auth-copy"), authMessage: $("#auth-message"),
+        authEmail: $("#auth-email"), authPassword: $("#auth-password"), authSubmit: $("#auth-submit"), authSwitch: $("#auth-switch"),
+        inviteWrap: $("#invite-wrap"), invite: $("#auth-invite"), nameWrap: $("#display-name-wrap"), displayName: $("#display-name"),
+        app: $("#app"), accountName: $("#account-name"), inviteButton: $("#invite-button"), inviteModal: $("#invite-modal"), inviteCode: $("#invite-code"),
+        transactionForm: $("#transaction-form"), amount: $("#amount"), flow: $("#flow"), category: $("#category"), date: $("#date"), note: $("#note"),
+        saveButton: $("#save-button"), message: $("#form-message"), search: $("#search"), filter: $("#filter"), list: $("#transaction-list"), count: $("#transaction-count")
+      };
+      let client = null;
+      let currentUser = null;
+      let profile = null;
+      let rows = [];
+      let authMode = "login";
+      let categoryChart = null;
+      let trendChart = null;
+
+      function dayKey(date = new Date()) {
+        const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+        const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+        return `${values.year}-${values.month}-${values.day}`;
+      }
+
+      function showAuth(mode = "login") {
+        authMode = mode;
+        ui.auth.hidden = false;
+        ui.app.hidden = true;
+        ui.inviteWrap.hidden = mode !== "register";
+        ui.invite.required = mode === "register";
+        ui.nameWrap.hidden = mode !== "register";
+        ui.authMessage.className = "auth-message";
+        ui.authMessage.textContent = "";
+        ui.authTitle.textContent = mode === "register" ? "Make this ledger yours." : "Your money, in motion.";
+        ui.authCopy.textContent = mode === "register" ? "Create your own private account with an invite from the owner." : "Sign in to your private spending dashboard.";
+        ui.authSubmit.textContent = mode === "register" ? "Create account" : "Sign in";
+        ui.authSwitch.textContent = mode === "register" ? "Back to sign in" : "Create account with an invite";
+      }
+
+      function updateCategories() {
+        const choices = categories[ui.flow.value];
+        ui.category.replaceChildren(...choices.map((value) => new Option(value, value)));
+        ui.saveButton.textContent = `Add ${ui.flow.value}`;
+      }
+
+      async function fetchAllTransactions() {
+        const pageSize = 500;
+        const transactions = [];
+        for (let start = 0; ; start += pageSize) {
+          const { data, error } = await client.from("transactions")
+            .select("id,user_id,transaction_type,amount_cents,category,transaction_date,note,created_at")
+            .order("transaction_date", { ascending: false })
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+            .range(start, start + pageSize - 1);
+          if (error) return { data: null, error };
+          transactions.push(...data);
+          if (data.length < pageSize) break;
+        }
+        return { data: transactions, error: null };
+      }
+
+      async function showDashboard(user) {
+        currentUser = user;
+        ui.auth.hidden = true;
+        ui.app.hidden = false;
+        ui.accountName.textContent = user.email;
+        ui.saveButton.disabled = true;
+        ui.message.textContent = "Loading your transactions…";
+        const [{ data: profileData, error: profileError }, { data, error }] = await Promise.all([
+          client.from("profiles").select("display_name,is_owner").eq("id", user.id).single(),
+          fetchAllTransactions()
+        ]);
+        if (profileError || error) {
+          ui.message.textContent = `Could not load your cloud records: ${(profileError || error).message}`;
+          return;
+        }
+        profile = profileData;
+        rows = data;
+        ui.accountName.textContent = profile.display_name || user.email;
+        ui.inviteButton.hidden = !profile.is_owner;
+        ui.saveButton.disabled = false;
+        ui.message.textContent = "";
+        render();
+      }
+
+      function renderSummary() {
+        const expenses = rows.filter((row) => row.transaction_type === "expense");
+        const incomes = rows.filter((row) => row.transaction_type === "income");
+        const month = dayKey().slice(0, 7);
+        const monthRows = expenses.filter((row) => row.transaction_date.startsWith(month));
+        const totals = expenses.reduce((result, row) => { result[row.category] = (result[row.category] || 0) + row.amount_cents; return result; }, {});
+        const top = Object.entries(totals).sort((a, b) => b[1] - a[1])[0];
+        $("#spent-total").textContent = money.format(expenses.reduce((sum, row) => sum + row.amount_cents, 0) / 100);
+        $("#spent-count").textContent = `${expenses.length} ${expenses.length === 1 ? "expense" : "expenses"}`;
+        $("#income-total").textContent = money.format(incomes.reduce((sum, row) => sum + row.amount_cents, 0) / 100);
+        $("#income-count").textContent = `${incomes.length} ${incomes.length === 1 ? "income entry" : "income entries"}`;
+        $("#month-total").textContent = money.format(monthRows.reduce((sum, row) => sum + row.amount_cents, 0) / 100);
+        $("#month-count").textContent = monthRows.length ? `${monthRows.length} this month` : "No expenses this month";
+        $("#top-category").textContent = top?.[0] || "—";
+        $("#top-total").textContent = top ? `${money.format(top[1] / 100)} spent` : "No spending yet";
+      }
+
+      function renderTransactions() {
+        const query = ui.search.value.trim().toLocaleLowerCase();
+        const category = ui.filter.value;
+        const matching = rows.filter((row) => {
+          const matchesCategory = category === "all" || row.category === category;
+          const searchable = `${row.note} ${row.category} ${row.transaction_type} ${row.transaction_date} ${row.amount_cents / 100}`.toLocaleLowerCase();
+          return matchesCategory && (!query || searchable.includes(query));
+        });
+        ui.count.textContent = `${matching.length} ${matching.length === 1 ? "transaction" : "transactions"}${query || category !== "all" ? " shown" : ""}`;
+        ui.list.replaceChildren();
+        if (!matching.length) {
+          const empty = document.createElement("div");
+          empty.className = "empty";
+          const title = document.createElement("strong");
+          title.textContent = rows.length ? "Nothing found" : "A fresh page";
+          const copy = document.createElement("span");
+          copy.textContent = rows.length ? "Try a different search or category." : "Add your first transaction to see it here.";
+          empty.append(title, copy);
+          ui.list.append(empty);
+          return;
+        }
+        for (const row of matching) {
+          const item = document.createElement("div");
+          item.className = "row";
+          const main = document.createElement("div");
+          main.className = "row-main";
+          const icon = document.createElement("span");
+          icon.className = "icon";
+          icon.style.background = tints[row.category];
+          icon.style.color = colors[row.category];
+          icon.textContent = icons[row.category];
+          icon.setAttribute("aria-hidden", "true");
+          const description = document.createElement("div");
+          description.className = "description";
+          const note = document.createElement("div");
+          note.className = "note";
+          note.textContent = row.note || row.category;
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          meta.textContent = `${row.transaction_type === "income" ? "Income" : "Expense"} · ${row.category}`;
+          description.append(note, meta);
+          main.append(icon, description);
+          const date = document.createElement("time");
+          date.className = "row-date";
+          date.dateTime = row.transaction_date;
+          date.textContent = dateFormat.format(new Date(`${row.transaction_date}T12:00:00Z`));
+          const end = document.createElement("div");
+          end.className = "row-end";
+          const amount = document.createElement("span");
+          amount.className = `amount${row.transaction_type === "income" ? " income" : ""}`;
+          amount.textContent = `${row.transaction_type === "income" ? "+" : ""}${money.format(row.amount_cents / 100)}`;
+          const remove = document.createElement("button");
+          remove.className = "delete";
+          remove.type = "button";
+          remove.textContent = "×";
+          remove.title = "Delete transaction";
+          remove.setAttribute("aria-label", `Delete ${row.category} ${row.transaction_type} for ${money.format(row.amount_cents / 100)}`);
+          remove.addEventListener("click", () => deleteTransaction(row));
+          end.append(amount, remove);
+          item.append(main, date, end);
+          ui.list.append(item);
+        }
+      }
+
+      function renderCharts() {
+        const totals = rows.filter((row) => row.transaction_type === "expense").reduce((result, row) => { result[row.category] = (result[row.category] || 0) + row.amount_cents; return result; }, {});
+        const categoryRows = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+        const chart = $("#category-chart");
+        chart.replaceChildren();
+        if (categoryChart) categoryChart.destroy();
+        if (trendChart) trendChart.destroy();
+        if (!categoryRows.length || typeof window.Chart !== "function") {
+          const empty = document.createElement("div");
+          empty.className = "chart-empty";
+          empty.textContent = categoryRows.length ? "Charts load when you are online." : "Add an expense to see your category mix.";
+          chart.append(empty);
+        } else {
+          const canvas = document.createElement("canvas");
+          canvas.setAttribute("aria-label", "Expense breakdown by category");
+          chart.append(canvas);
+          categoryChart = new window.Chart(canvas, { type:"doughnut", data:{ labels:categoryRows.map(([name])=>name), datasets:[{ data:categoryRows.map(([,amount])=>amount/100), backgroundColor:categoryRows.map(([name])=>colors[name]), borderWidth:0, hoverOffset:5 }] }, options:{ responsive:true, maintainAspectRatio:false, cutout:"70%", plugins:{ legend:{ position:"bottom", labels:{ boxWidth:9, boxHeight:9, font:{ size:10 } } }, tooltip:{ callbacks:{ label:(context)=>` ${money.format(context.parsed)}` } } } } });
+        }
+
+        const dayTotals = new Map();
+        const today = new Date();
+        for (let offset = 13; offset >= 0; offset -= 1) {
+          const day = new Date(today.getTime() - offset * 86400000);
+          const key = dayKey(day);
+          dayTotals.set(key, 0);
+        }
+        rows.filter((row) => row.transaction_type === "expense").forEach((row) => { if (dayTotals.has(row.transaction_date)) dayTotals.set(row.transaction_date, dayTotals.get(row.transaction_date) + row.amount_cents); });
+        const trend = $("#trend-chart");
+        trend.replaceChildren();
+        if (!rows.some((row) => row.transaction_type === "expense") || typeof window.Chart !== "function") {
+          const empty = document.createElement("div");
+          empty.className = "chart-empty";
+          empty.textContent = rows.some((row) => row.transaction_type === "expense") ? "Charts load when you are online." : "Your daily spending will appear here.";
+          trend.append(empty);
+          return;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.setAttribute("aria-label", "Daily expense trend over the last 14 days");
+        trend.append(canvas);
+        trendChart = new window.Chart(canvas, {
+          type: "line",
+          data: {
+            labels: [...dayTotals.keys()].map((key) => shortDate.format(new Date(`${key}T12:00:00Z`))),
+            datasets: [{
+              data: [...dayTotals.values()].map((value) => value / 100),
+              borderColor: "#789746", backgroundColor: "rgb(187 223 105 / 21%)", fill: true,
+              tension: .35, pointRadius: 2, pointHoverRadius: 5, pointBackgroundColor: "#55713a", borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: "index" },
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: (context) => ` ${money.format(context.parsed.y)}` } }
+            },
+            scales: {
+              x: { grid: { display: false }, border: { display: false }, ticks: { color: "#89928b", maxTicksLimit: 7, font: { size: 9 } } },
+              y: { beginAtZero: true, border: { display: false }, grid: { color: "#edf0eb" }, ticks: { color: "#89928b", maxTicksLimit: 4, font: { size: 9 }, callback: (value) => money.format(value) } }
+            }
+          }
+        });
+      }
+
+      function render() {
+        renderSummary();
+        renderTransactions();
+        renderCharts();
+      }
+
+      async function deleteTransaction(row) {
+        const { error } = await client.from("transactions").delete().eq("id", row.id);
+        if (error) { ui.message.textContent = `Could not delete transaction: ${error.message}`; return; }
+        rows = rows.filter((item) => item.id !== row.id);
+        render();
+        ui.message.textContent = "Transaction deleted.";
+      }
+
+      async function initialize() {
+        const config = window.DAYBOOK_CONFIG;
+        if (!window.supabase || !config?.url || !config?.anonKey) {
+          showAuth("login");
+          ui.authMessage.className = "auth-message error";
+          ui.authMessage.textContent = "Supabase is not configured yet. Follow the GitHub and Supabase setup in the project README.";
+          return;
+        }
+        client = window.supabase.createClient(config.url, config.anonKey);
+        const { data: { session } } = await client.auth.getSession();
+        if (session) await showDashboard(session.user);
+        else showAuth("login");
+        client.auth.onAuthStateChange((event, session) => {
+          if (event === "SIGNED_OUT") {
+            rows = [];
+            profile = null;
+            currentUser = null;
+            showAuth("login");
+          } else if (event === "SIGNED_IN" && session?.user && currentUser?.id !== session.user.id) {
+            showDashboard(session.user);
+          }
+        });
+      }
+
+      ui.authForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        ui.authSubmit.disabled = true;
+        ui.authMessage.className = "auth-message";
+        ui.authMessage.textContent = "";
+        const email = ui.authEmail.value.trim();
+        const password = ui.authPassword.value;
+        try {
+          if (authMode === "login") {
+            const { data, error } = await client.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+            if (data.session) await showDashboard(data.user);
+          } else {
+            if (password.length < 10) throw new Error("Use a password with at least 10 characters.");
+            const { data, error } = await client.auth.signUp({ email, password, options:{ data:{ invite_code:ui.invite.value.trim(), display_name:ui.displayName.value.trim() }, emailRedirectTo:location.href } });
+            if (error) throw error;
+            if (data.session) await showDashboard(data.user);
+            else {
+              ui.authMessage.textContent = "Check your email to confirm the account, then sign in.";
+              ui.authForm.reset();
+            }
+          }
+        } catch (error) {
+          ui.authMessage.className = "auth-message error";
+          ui.authMessage.textContent = error.message || "Could not sign you in.";
+        } finally {
+          ui.authSubmit.disabled = false;
+        }
+      });
+
+      ui.authSwitch.addEventListener("click", () => showAuth(authMode === "login" ? "register" : "login"));
+      ui.flow.addEventListener("change", updateCategories);
+      ui.search.addEventListener("input", renderTransactions);
+      ui.filter.addEventListener("change", renderTransactions);
+      ui.transactionForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!currentUser) return;
+        const rawAmount = String(ui.amount.value).trim();
+        const amount = Number(rawAmount);
+        const decimalPlaces = rawAmount.includes(".") ? rawAmount.split(".", 2)[1].length : 0;
+        const amountCents = Math.round(amount * 100);
+        if (!Number.isFinite(amount) || amountCents <= 0 || decimalPlaces > 2) { ui.message.textContent = decimalPlaces > 2 ? "Enter a valid amount with no more than two decimal places." : "Enter an amount greater than zero."; return; }
+        ui.saveButton.disabled = true;
+        const transaction = { user_id:currentUser.id, transaction_type:ui.flow.value, amount_cents:amountCents, category:ui.category.value, transaction_date:ui.date.value, note:ui.note.value.trim() };
+        const { data, error } = await client.from("transactions").insert(transaction).select("id,user_id,transaction_type,amount_cents,category,transaction_date,note,created_at").single();
+        ui.saveButton.disabled = false;
+        if (error) { ui.message.textContent = `Could not save transaction: ${error.message}`; return; }
+        rows.unshift(data);
+        render();
+        ui.transactionForm.reset();
+        updateCategories();
+        ui.date.value = dayKey();
+        ui.message.textContent = "Transaction saved to your cloud account.";
+      });
+
+      ui.inviteButton.addEventListener("click", async () => {
+        ui.inviteCode.textContent = "Creating invite…";
+        ui.inviteModal.hidden = false;
+        const { data, error } = await client.rpc("create_daybook_invite");
+        ui.inviteCode.textContent = error ? error.message : data;
+      });
+      $("#close-invite").addEventListener("click", () => { ui.inviteModal.hidden = true; });
+      ui.inviteModal.addEventListener("click", (event) => { if (event.target === ui.inviteModal) ui.inviteModal.hidden = true; });
+      $("#copy-invite").addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(ui.inviteCode.textContent); $("#copy-invite").textContent = "Copied"; }
+        catch { $("#copy-invite").textContent = "Select and copy the code"; }
+      });
+      $("#signout-button").addEventListener("click", async () => { if (client) await client.auth.signOut({ scope:"local" }); });
+      $("#export-button").addEventListener("click", () => {
+        const header = ["type", "amount_bdt", "category", "date", "note"];
+        const csv = [header, ...rows.map((row) => [row.transaction_type, (row.amount_cents / 100).toFixed(2), row.category, row.transaction_date, row.note])]
+          .map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\r\n");
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([csv], { type:"text/csv;charset=utf-8" }));
+        link.download = `daybook-${dayKey()}.csv`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      });
+
+      $("#today").textContent = dateFormat.format(new Date());
+      ui.date.value = dayKey();
+      updateCategories();
+      const allCategories = [...new Set([...categories.expense, ...categories.income])];
+      ui.filter.replaceChildren(new Option("All categories", "all"), ...allCategories.map((category) => new Option(category, category)));
+      window.addEventListener("load", initialize, { once: true });
+    })();
+  </script>
+</body>
+</html>
