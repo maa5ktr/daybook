@@ -18,6 +18,13 @@ create table if not exists public.invites (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.owner_setup_codes (
+  singleton boolean primary key default true check (singleton),
+  code_hash text not null,
+  expires_at timestamptz not null,
+  used_at timestamptz
+);
+
 create table if not exists public.transactions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -47,6 +54,7 @@ set search_path = ''
 as $$
 declare
   invite_code text;
+  owner_setup_code text;
   is_first_user boolean;
   display_name text;
 begin
@@ -57,7 +65,19 @@ begin
     split_part(new.email, '@', 1)
   );
 
-  if not is_first_user then
+  if is_first_user then
+    owner_setup_code := nullif(new.raw_user_meta_data ->> 'owner_setup_code', '');
+    update public.owner_setup_codes
+    set used_at = now()
+    where singleton
+      and code_hash = encode(extensions.digest(owner_setup_code, 'sha256'), 'hex')
+      and used_at is null
+      and expires_at > now();
+
+    if not found then
+      raise exception 'A valid first-time setup code is required.';
+    end if;
+  else
     invite_code := nullif(new.raw_user_meta_data ->> 'invite_code', '');
     if invite_code is null then
       raise exception 'A valid Daybook invitation is required.';
@@ -77,6 +97,30 @@ begin
   insert into public.profiles (id, email, display_name, is_owner)
   values (new.id, new.email, display_name, is_first_user);
   return new;
+end;
+$$;
+
+create or replace function public.create_daybook_owner_setup_code()
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  setup_code text := encode(extensions.gen_random_bytes(18), 'hex');
+begin
+  if exists (select 1 from public.profiles) then
+    raise exception 'An owner setup code can only be created before the first account.';
+  end if;
+
+  insert into public.owner_setup_codes (singleton, code_hash, expires_at, used_at)
+  values (true, encode(extensions.digest(setup_code, 'sha256'), 'hex'), now() + interval '24 hours', null)
+  on conflict (singleton) do update
+  set code_hash = excluded.code_hash,
+      expires_at = excluded.expires_at,
+      used_at = null;
+
+  return setup_code;
 end;
 $$;
 
@@ -113,14 +157,16 @@ $$;
 
 alter table public.profiles enable row level security;
 alter table public.invites enable row level security;
+alter table public.owner_setup_codes enable row level security;
 alter table public.transactions enable row level security;
 
-revoke all on table public.profiles, public.invites, public.transactions from anon, authenticated;
+revoke all on table public.profiles, public.invites, public.owner_setup_codes, public.transactions from anon, authenticated;
 grant select on table public.profiles to authenticated;
 grant select, insert, delete on table public.transactions to authenticated;
 grant execute on function public.create_daybook_invite() to authenticated;
 revoke all on function public.handle_new_daybook_user() from public, anon, authenticated;
 revoke all on function public.create_daybook_invite() from public, anon;
+revoke all on function public.create_daybook_owner_setup_code() from public, anon, authenticated;
 
 drop policy if exists "Users read their own profile" on public.profiles;
 create policy "Users read their own profile"
